@@ -15,13 +15,13 @@ Megan S. Munis, DVM MS. University of New Hampshire College of Life Sciences and
 
 #### Methods
 
-##### Sample Collection and Bacterial Culture 
+##### Sample Collection and Bacterial Culture
 
-Urine was collected by sterile cystocentesis from a live-trapped fisher in Durham, NH as a component of a collaborative study between New Hampshire Fisher and Game and the University of New Hampshire. Urine was inoculated into Ellinghausen-McCullough-Johnson-Harris (EMJH) media and incubated at 30°C for 4 weeks at USDA-ARS National Animal Disease Center (NADC) in Ames, IA. The resulting cultured isolate was frozen at -80°C and shipped to the University of New Hampshire for DNA extraction and sequencing.
+Urine was collected by sterile cystocentesis from a live-trapped fisher in Durham, NH as a component of a collaborative study between New Hampshire Fisher and Game and the University of New Hampshire. Urine was inoculated into Ellinghausen-McCullough-Johnson-Harris (EMJH) media and incubated at 30°C for 4 weeks at USDA-ARS National Animal Disease Center in Ames, IA. The resulting cultured isolate was frozen at -80°C and shipped to the University of New Hampshire for DNA extraction and sequencing.
 
 ##### Sequencing
 
-The DNA extraction and sequencing were performed at the University of New Hampshire Hubbard Center for Genome Studies. The isolate was sequenced using an Illumina HiSeq 2500 platform with 250p paired-end reads. The raw sequencing data were processed using Trimmomatic for quality control and adapter trimming. The cleaned reads were then assembled de novo using SPAdes assembler. The resulting contigs were annotated using PROKKA. Assembly quality was assessed using BUSCO and QUAST tools. A BLAST query was completed against the 16s rRNA gene to confirm the taxonomic identity of the isolate. \*filtered samtools to 500kb, depth of 10 coverage. The filtered genome ......
+The DNA extraction and sequencing were performed at the University of New Hampshire Hubbard Center for Genome Studies. The isolate was sequenced using an Illumina HiSeq 2500 platform with 250p paired-end reads. The raw sequencing data were processed using Trimmomatic for quality control and adapter trimming . The cleaned reads were then assembled de novo using SPAdes assembler. The resulting contigs were annotated using PROKKA. Assembly quality was assessed using BUSCO and QUAST tools. A BLAST query was completed against the 16s rRNA gene to confirm the taxonomic identity of the isolate. \*filtered samtools to 500kb, depth of 10 coverage. The filtered genome ......
 
 ##### Results
 

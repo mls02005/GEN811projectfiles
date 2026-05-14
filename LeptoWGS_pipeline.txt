@@ -30,12 +30,6 @@ less -S spades_assembly_default/contigs.fasta
 # view the top 10 headers
 grep '>' spades_assembly_default/contigs.fasta | head
 # count the number of sequences
-ls spades_assembly_default/
-# view FASTA file
-less -S spades_assembly_default/contigs.fasta
-# view the top 10 headers
-grep '>' spades_assembly_default/contigs.fasta | head
-# count the number of sequences
 grep -c '>' spades_assembly_default/contigs.fasta
 
 #keep spades.log, ok to delete the rest
@@ -61,8 +55,6 @@ quast.py contigs.fasta -o quast_results
 
 #BUSCO: assess completeness of the assembly. 
 busco -i contigs.fasta -m genome -o busco-results -l bacteria
-# note: add the -c option to change the number of threads.
-# view the table
 
 
 # view the short summary
@@ -72,7 +64,6 @@ less -S busco-results/run_bacteria_odb10/full_table.tsv
 # list and view a amino acid of protein sequence
 ls busco-results/run_bacteria_odb10/busco_sequences/
 
-#single_copy_busco_sequences/'. This houses all the amino acid and protein sequences
 
 #Genome Annotation / PROKKA
 nohup prokka contigs.fasta --outdir prokka_output --cpus 24 --mincontiglen 200 &
@@ -81,21 +72,13 @@ nohup prokka contigs.fasta --outdir prokka_output --cpus 24 --mincontiglen 200 &
 grep -o "product=.*" prokka_output/PROKKA_*.gff | sed 's/product=//g' | sort | uniq -c | sort -nr > protein_abundances.txt
 
 #Extract the 16S sequence from the FFN file
-# grep for 16S in the PROKKA annotations to see if it exists
-grep 16S prokka_output/*.ffn
-# run extract with an exact header
 extract_sequences "16S ribosomal RNA" prokka_output/PROKKA_*.ffn > 16S_sequence.fasta
-# check if it worked
-less -S 16S_sequence.fasta
+
 
 #BLAST
-# run BLAST
 blastn -query 16S_sequence.fasta -db contigs_db -out 16S_vs_contigs_6.tsv -outfmt 6
-# view the results
 tabview 16S_vs_contigs_6.tsv
-# run the scipt, note that it will automatically use nohup since it will take about 30 minutes to run
 blast-ncbi-nt.sh contigs.fasta
-# view the results, the last column is the species identification
 tabview contigs.fasta.vs.nt.cul5.1e5.megablast.out
 
 # Step 1: Index your reference genome. This is a requirement before read mapping.
@@ -138,14 +121,36 @@ mkdir ~/mdibl-t3-2018-WGS/filtered_assembly
 cd ~/mdibl-t3-2018-WGS/filtered_assembly
 # copy the taxonomy table
 cp ~/~/mdibl-t3-2018-WGS/blob_taxonomy.blob_out.blobDB.table.txt ./
-# Filter by length
-grep -v '#' blob_taxonomy.blob_out.blobDB.table.txt | awk -F'\t' '$2 > 500' | tabview -
-# You can always do the opposite to examine what you are losing, do this every time
-grep -v '#' blob_taxonomy.blob_out.blobDB.table.txt | awk -F'\t' '$2 < 500' | tabview -
-# You can check how many contigs are retained with the 'wc' command which counts lines.
-grep -v '#' blob_taxonomy.blob_out.blobDB.table.txt | awk -F'\t' '$2 > 500' | wc
-grep -v '#' blob_taxonomy.blob_out.blobDB.table.txt | awk -F'\t' '$2 < 500' | wc
+# Filter by length and coverage. 
+rep -v '#' blob_taxonomy.blob_out.blobDB.table.txt | awk -F'\t' '$2 > 500' | awk -F'\t' '$5 > 10' | tabview -
 
 #Univec to check for contamination
 wget "https://ftp.ncbi.nlm.nih.gov/pub/UniVec/UniVec"
 blastn -reward 1 -penalty -5 -gapopen 3 -gapextend 3 -dust yes -soft_masking true -evalue 700 -searchsp 1750000000000 -query leptok_filtered.fasta -subject UniVec  -outfmt 6 -out genome_vs_univec.6
+
+Non-target contig removal: 
+#Repeat QUAST and BUSCO on filtered assembly        
+quast.py leptok_filtered.fasta -o quast_results_filtered    
+busco -i leptok_filtered.fasta -m genome -o busco-results-filtered -l bacteria
+#Repeat Blobplot
+blobtools create -i leptok_filtered.fasta -b sorted_mapped.bam -t contigs.fasta.vs.nt.cul5.1e5.megablast.out -o blob_out
+blobtools view -i blob_out.blobDB.json -r all -o blob_taxonomy
+blobtools plot -i blob_out.blobDB.json -r genus
+
+#Comparative Genomics / Orthofinder
+
+mkdir orthofinder
+cd orthofinder
+#script to download .faa proteome files from NCBI for reference genomes for Leptospira kirschneri. 
+home/share/example-data/download-genomes.sh
+cd proteomes
+gunzip *.faa.gz
+cp PROKKA_05062026.faa trimmed_reads/filtered_assembly/orthofinder/data/proteomes/
+orthofinder -t 24 -a 24 -f proteomes/ -o orthofinder-analysis
+ls orthofinder-analysis/Results*/
+
+
+
+
+
+
