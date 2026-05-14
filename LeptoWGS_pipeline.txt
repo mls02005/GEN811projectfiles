@@ -1,0 +1,151 @@
+#Lepto WGS
+#WGS Workflow
+
+cd 
+#Combine fastq files and move 
+# file1 file 2 > combined file
+cat F7539_S10_L001_R1_001.fastq.gz F7539_S10_L002_R1_001.fastq.gz > F7539_S10_R1_001.fastq.gz
+cat F7539_S10_L001_R2_001.fastq.gz F7539_S10_L002_R2_001.fastq.gz > F7539_S10_R2_001.fastq.gz
+
+conda activate genomics
+
+#FASTQC
+mkdir fastqc_raw-reads
+fastqc F7539_S10_R1_001.fastq.gz F7539_S10_R2_001.fastq.gz -o fastqc_raw-reads
+ls fastqc_raw-reads
+
+#TRIMMOMATIC
+trim_scriptV2.sh F7539_S10_R1_001.fastq.gz F7539_S10_R2_001.fastq.gz
+mkdir trimmed_reads
+mv *fastq.gz trimmed_reads/
+ls trimmed_reads/
+
+#GENOME ASSEMBLY -SPAdes
+nohup spades.py -1 F7539_S10_R1_001.fastq.gz -2 F7539_S10_R2_001.fastq.gz -s unpaired-F7539_S10_R1_001.fastq.gz -s unpaired_F7539_S10_R2_001.fastq.gz -o spades_assembly_default -t 24 &
+
+#View output when Spades finishes
+ls spades_assembly_default/
+# view FASTA file
+less -S spades_assembly_default/contigs.fasta
+# view the top 10 headers
+grep '>' spades_assembly_default/contigs.fasta | head
+# count the number of sequences
+ls spades_assembly_default/
+# view FASTA file
+less -S spades_assembly_default/contigs.fasta
+# view the top 10 headers
+grep '>' spades_assembly_default/contigs.fasta | head
+# count the number of sequences
+grep -c '>' spades_assembly_default/contigs.fasta
+
+#keep spades.log, ok to delete the rest
+# There are many ways to do this, proceed however you are comfortable. I am going to move the files I want to keep out of the directory, delete everything else in the directory with 'rm' then move my files back in. Alternatively you could just remove unwanted files one at a time.
+# Move into the spades directory
+cd spades_spades_assembly_default/
+# move the files we want to keep back one directory
+mv contigs.fasta spades.log ../
+# confirm that the files moved!!!!!!!
+ls ../
+# confirm you are still in the spades_directory (I'm paranoid)
+pwd
+# you should see something like /home/GROUP/UserName/mdibl-t3-2018-WGS/spades_directory_default/
+# After you confirm the files have been moved and you are in the right directory, delete the unwanted files
+rm -r *
+# move the files back
+mv ../contigs.fasta ../spades.log ./
+# list the directory and you should see just the two files.
+ls
+
+#QUAST
+quast.py contigs.fasta -o quast_results
+
+#BUSCO: assess completeness of the assembly. 
+busco -i contigs.fasta -m genome -o busco-results -l bacteria
+# note: add the -c option to change the number of threads.
+# view the table
+
+
+# view the short summary
+less -S busco-results/short_summary.specific.bacteria_odb10.busco-results.txt
+# view the full table
+less -S busco-results/run_bacteria_odb10/full_table.tsv
+# list and view a amino acid of protein sequence
+ls busco-results/run_bacteria_odb10/busco_sequences/
+
+#single_copy_busco_sequences/'. This houses all the amino acid and protein sequences
+
+#Genome Annotation / PROKKA
+nohup prokka contigs.fasta --outdir prokka_output --cpus 24 --mincontiglen 200 &
+
+# Copy this command to get a txt file with counts for each gene annotation.
+grep -o "product=.*" prokka_output/PROKKA_*.gff | sed 's/product=//g' | sort | uniq -c | sort -nr > protein_abundances.txt
+
+#Extract the 16S sequence from the FFN file
+# grep for 16S in the PROKKA annotations to see if it exists
+grep 16S prokka_output/*.ffn
+# run extract with an exact header
+extract_sequences "16S ribosomal RNA" prokka_output/PROKKA_*.ffn > 16S_sequence.fasta
+# check if it worked
+less -S 16S_sequence.fasta
+
+#BLAST
+# run BLAST
+blastn -query 16S_sequence.fasta -db contigs_db -out 16S_vs_contigs_6.tsv -outfmt 6
+# view the results
+tabview 16S_vs_contigs_6.tsv
+# run the scipt, note that it will automatically use nohup since it will take about 30 minutes to run
+blast-ncbi-nt.sh contigs.fasta
+# view the results, the last column is the species identification
+tabview contigs.fasta.vs.nt.cul5.1e5.megablast.out
+
+# Step 1: Index your reference genome. This is a requirement before read mapping.
+bwa index $fasta
+# Step 2: Map the reads and construct a SAM file.
+bwa mem -t 24 $fasta $forward $reverse > raw_mapped.sam
+# view the file with less, note that to see the data you have to scroll down past all the headers (@SQ).
+less -S raw_mapped.sam
+
+# Remove sequencing reads that did not match to the assembly and convert the SAM to a BAM.
+samtools view -@ 24 -Sb  raw_mapped.sam  | samtools sort -@ 24 -o sorted_mapped.bam
+# Examine how many reads mapped with samtools
+samtools flagstat sorted_mapped.bam
+# Calculate per base coverage with bedtools
+
+# index the new bam file
+samtools index sorted_mapped.bam
+
+bedtools genomecov -ibam sorted_mapped.bam > coverage.out
+# Calculate per contig coverage with gen_input_table.py
+gen_input_table.py  --isbedfiles $fasta coverage.out >  coverage_table.tsv
+# This outputs a simple file with two columns, the contig header and the average coverage.
+
+#BLOBTOOLS
+# Create lookup table
+blobtools create --help
+blobtools create -i contigs.fasta -b sorted_mapped.bam -t contigs.fasta.vs.nt.cul5.1e5.megablast.out -o blob_out
+# Create output table
+blobtools view --help
+blobtools view -i blob_out.blobDB.json -r all -o blob_taxonomy
+# view the table, I remove headers with grep -v and view with tabview
+grep -v '##' blob_taxonomy.blob_out.blobDB.table.txt
+# Plot the data
+blobtools plot --help
+blobtools plot -i blob_out.blobDB.json -r genus
+
+Filter the Assembly
+# make a directory for filtering
+mkdir ~/mdibl-t3-2018-WGS/filtered_assembly
+cd ~/mdibl-t3-2018-WGS/filtered_assembly
+# copy the taxonomy table
+cp ~/~/mdibl-t3-2018-WGS/blob_taxonomy.blob_out.blobDB.table.txt ./
+# Filter by length
+grep -v '#' blob_taxonomy.blob_out.blobDB.table.txt | awk -F'\t' '$2 > 500' | tabview -
+# You can always do the opposite to examine what you are losing, do this every time
+grep -v '#' blob_taxonomy.blob_out.blobDB.table.txt | awk -F'\t' '$2 < 500' | tabview -
+# You can check how many contigs are retained with the 'wc' command which counts lines.
+grep -v '#' blob_taxonomy.blob_out.blobDB.table.txt | awk -F'\t' '$2 > 500' | wc
+grep -v '#' blob_taxonomy.blob_out.blobDB.table.txt | awk -F'\t' '$2 < 500' | wc
+
+#Univec to check for contamination
+wget "https://ftp.ncbi.nlm.nih.gov/pub/UniVec/UniVec"
+blastn -reward 1 -penalty -5 -gapopen 3 -gapextend 3 -dust yes -soft_masking true -evalue 700 -searchsp 1750000000000 -query leptok_filtered.fasta -subject UniVec  -outfmt 6 -out genome_vs_univec.6
