@@ -141,13 +141,56 @@ blobtools plot -i blob_out.blobDB.json -r genus
 
 mkdir orthofinder
 cd orthofinder
-#script to download .faa proteome files from NCBI for reference genomes for Leptospira kirschneri. 
-home/share/example-data/download-genomes.sh
+download .faa proteome files from NCBI for reference genomes for Leptospira kirschneri. 
+#!/usr/bin/env bash
+
+if [[ ! -s assembly_summary_refseq.txt ]]
+then
+    wget https://ftp.ncbi.nlm.nih.gov/genomes/ASSEMBLY_REPORTS/assembly_summary_refseq.txt -O assembly_summary_refseq.txt --quiet --no-check-certificate
+fi
+
+species="Leptospira kirschneri"
+outgroup="Leptospira interrogans"
+mkdir -p data/genomes data/proteomes
+# All assemblies for target species
+links=$(grep -F "$species" assembly_summary_refseq.txt | cut -f 20)
+# One outgroup assembly
+outgroup_link=$(grep -F "$outgroup" assembly_summary_refseq.txt | sort -R | head -n 1 | cut -f 20)
+# Combine links
+links="$links $outgroup_link"
+for link in $links
+do
+    # Species name
+    species_name=$(grep -F "$link" assembly_summary_refseq.txt \
+        | cut -f 8 \
+        | cut -f 1-2 -d' ' \
+        | sed 's/ /_/g')
+
+    # Accession from URL
+    accession=$(basename "$link")
+
+    echo "Downloading $species_name ($accession) from $link"
+
+    genome_file="${accession}_genomic.fna.gz"
+    proteome_file="${accession}_protein.faa.gz"
+
+    fna="${link}/${genome_file}"
+    faa="${link}/${proteome_file}"
+
+    wget "$fna" \
+        -O "data/genomes/${species_name}_${accession}_genomic.fna.gz" \
+        --quiet --no-check-certificate
+        wget "$faa" \
+        -O "data/proteomes/${species_name}_${accession}_protein.faa.gz" \
+        --quiet --no-check-certificate
+done
+
 cd proteomes
 gunzip *.faa.gz
 cp PROKKA_05062026.faa trimmed_reads/filtered_assembly/orthofinder/data/proteomes/
 orthofinder -t 24 -a 24 -f proteomes/ -o orthofinder-analysis
 ls orthofinder-analysis/Results*/
+
 
 
 

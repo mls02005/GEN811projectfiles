@@ -1,0 +1,119 @@
+---
+title: "Assembly and Annotation of a *Leptospira* Isolate from a New Hampshire Fisher (Pekania pennanti)"
+format: html
+editor: visual
+bibliography: references.bib
+link-citations: true
+---
+
+### Author
+
+Megan S. Munis, DVM MS. University of New Hampshire College of Life Sciences and Agriculture.
+
+#### Introduction
+
+*Leptospira* is a genus of zoonotic spirochete bacteria that includes several species capable of causing disease in humans and animals. This study focuses on the assembly and annotation of a *Leptospira* isolate obtained from a New Hampshire Fisher (Pekania pennanti). Disseminated in the urine of infected humans and animals, innoculation of the mucus membranes results in systemic infection and a range of symptoms, from mild flu symptoms to severe illness, renal and hepatic failure, and death[@daroz2021]. Historically mesocarnivoies such as fisher have been suspected to be chronic carriers of Leptospira and consequently serve as reservoirs for the pathogen in the environment and a source of infection for humans and animals, however previous studies are limited to serologic or molecular techniques which show exposure to the bacteria and its presence in the animals respectively, but do not explain the pathogenesis of the bacteria and its potential to cause disease in wildlife species[@helman2023]. By culturing leptospira from a live fisher we have the unique opportunity to study the genomic characteristics of a *Leptospira* isolate from wildlife and understand their pathogenic potential. Understanding the genomic characteristics of *Leptospira* isolates from wildlife can provide insights into their pathogenic potential and inform public health strategies for managing leptospirosis. The objectives of this study were to assemble the genome of the *Leptospira* isolate, assess its completeness, and annotate its gene content to better understand its potential virulence factors and ecological role.
+
+#### Methods
+
+#### *Sample Collection and Bacterial Culture*
+
+Urine was collected by sterile cystocentesis from a live-trapped fisher in Durham, NH as a component of a collaborative study between New Hampshire Fisher and Game and the University of New Hampshire. Urine was immediately inoculated into Ellinghausen-McCullough-Johnson-Harris (EMJH) media and incubated at 30°C for 4 weeks at USDA-ARS National Animal Disease Center in Ames, IA. The resulting cultured isolate was frozen at -80°C and shipped to the University of New Hampshire for DNA extraction and sequencing.
+
+#### *Sequencing*
+
+DNA extraction and sequencing were performed at the University of New Hampshire Hubbard Center for Genome Studies. The isolate was sequenced using an Illumina NovaSeq 6000 platform with 250bp paired-end reads. Fastq sequencing files were assessed with FASTqc and processed using Trimmomatic for quality control and adapter trimming [@bolger2014]. The cleaned reads were then assembled de novo using SPAdes assembler, and the resulting contigs were annotated using PROKKA [@prjibelski2020; @seemann2014]. Assembly quality was assessed using BUSCO and QUAST tools[@stone2025; @simão2015]. A BLAST query was completed against the 16s rRNA gene to confirm the taxonomic identity of the isolate[@altschul1990]. The assembly was then filtered with BlobTools to remove contigs shorter than 500 bp, and a sequencing depth of less than 10[@laetsch2017]. The filtered isolate was re-assessed using QUAST.
+
+#### *Comparative Genomics*
+
+The FASTA amino acid (.faa) file produced by Prokka annotation was used to perform a comparative genomic analysis with other *Leptospira* species.A bar chart of annoted protein category abundances was created with ggplot2 and R [@wickham2016a; @rcoreteam]. Previously published *Leptospira kirschneri* genomes (n=52) .faa files were downloaded for comparison, in addition to a *Leptospira interrogans* genome .faa file to serve as an outgroup. The OrthoFinder tool was used to identify clusters among the *Leptospira* genomes, and a phylogenetic tree was constructed[@tegenfeldt2025]. A proteomic tree was visualized with the Interative Tree of Life (iTOL)[@letunic2024].
+
+#### Results
+
+The BLAST query of the 16s rRNA gene confirmed that the isolate belongs to the Leptospira genus, with a 99% identity match to Leptospira kirschneri. After filtering, QUAST results revealed 78 contigs with an N50 of 122,144 bp, and a L50 of 11 bp. The GC content of 35.92%, and total assembly size of 4.36bp is consistent with other Leptospira genomes [@mejía2022]. Prokka annotation identified 4,173 protein-coding genes, of which 46% were functionally annoted, leaving 54% hypothetical proteins (Fig 1). Known proteins identified were consistent with those expected for the species include those related to chemotaxis and mobility, which is expected in a highly motile bacteria, in addition to 6 multidrug resistance proteins.
+
+```{r}
+#| fig-cap: "Most abundant functional protein categories in L. kirschneri. Prokka annotation of genes resulted in 46% functional annotation, with the most common categores expressed."
+#| label: fig-prokka-abundance
+#| echo: false
+#| message: false
+#| warning: false
+#| results: 'hide'
+
+library(ggplot2)
+library(dplyr)
+
+raw_lines <- readLines('protein_abundances.txt', n = 5)
+cat("First 5 lines of raw file:\n")
+print(raw_lines)
+
+lines <- readLines('protein_abundances.txt')
+
+data <- data.frame(
+  count = as.numeric(sub("^\\s*(\\d+)\\s+.*", "\\1", lines)),
+  protein = sub("^\\s*\\d+\\s+(.+)$", "\\1", lines),
+  stringsAsFactors = FALSE
+)
+
+cat("\nData structure after parsing:\n")
+str(data)
+cat("\nFirst few rows:\n")
+head(data)
+cat("\nAny missing values?\n")
+cat("Missing counts:", sum(is.na(data$count)), "\n")
+cat("Missing proteins:", sum(is.na(data$protein) | data$protein == ""), "\n")
+
+data <- data[!is.na(data$count) & !is.na(data$protein) & data$protein != "", ]
+
+cat("\nCleaned data - rows:", nrow(data), "\n")
+
+filtered_data <- data %>% 
+  filter(!grepl("hypothetical|putative", protein, ignore.case = TRUE)) %>%
+  arrange(desc(count)) %>%
+  head(20) %>%
+  mutate(protein = ifelse(nchar(protein) > 50, 
+                         paste0(substr(protein, 1, 47), "..."), 
+                         protein))
+
+cat("Filtered data - rows:", nrow(filtered_data), "\n")
+
+filtered_data %>%
+  ggplot(aes(x = reorder(protein, count), y = count)) +
+  geom_col(fill = 'steelblue', alpha = 0.8, width = 0.7) +
+  coord_flip() +
+  labs(
+    x = NULL,
+    y = 'Number of proteins', 
+    title = 'Functional protein categories',
+    subtitle = 'PROKKA annotation')+
+  theme_minimal() +
+  theme(
+    plot.title = element_text(size = 10, face = "bold"),
+    plot.subtitle = element_text(size = 8, color = "gray30"),
+    axis.text.y = element_text(size = 6),
+    axis.text.x = element_text(size = 8),
+    axis.title.x = element_text(size = 8, face = "bold"),
+    panel.grid.minor = element_blank(),
+    panel.grid.major.y = element_blank(),
+    plot.margin = margin(20, 20, 20, 20)
+  ) +
+  scale_y_continuous(expand = c(0, 0), limits = c(0, max(filtered_data$count, na.rm = TRUE) * 1.05))
+```
+
+Visualization of proteomic phylogeny of the isolate shows close clustering with other published *L. kirschneri*, suggesting close relationship with other members of the species (Fig 2). The outgroup *L. interrogans* correctly roots outside of the *L. kirschneri* tree.
+
+```{r itol-tree}
+#| fig-cap: "Phylogenetic Tree. Visualization of the proteomic phylogentic tree as achieved with the Interactive Tree of Life. PROKKA 05062006 clusters closely with related Leptospira kirschneri isolates. Leptospira interogans is expressed as an outside root to confirm correct placement of the L. kirschneri root"
+#| label: fig-itol-tree
+#| echo: false
+#| fig-width: 14
+#| fig-height: 22
+#| out-width: "160%"
+#| fig-pos: "H"
+
+knitr::include_graphics("ITOL.png")
+```
+
+This is the first described isolation and genomic sequencing of a Leptospira isolate from a fisher, and as a zoonotic pathogen its characterization has critical implication for the pathogenicity of the bacteria across host species. Additional analysis will include identification of virulence genes, antimicrobial resistance genes, and Multilocus Sequence Typing (MLST) to identify the serovar, in addition to comparison of this genome with regional isolates cultured from other host species. Most importantly, further study will be required to characterize the pathogenesis and immune response of fisher and other mesocarnivores to the bacteria, and to refute the historical perspective that wild mammals are asymptomatic carriers of the bacteria.
+
+### References
